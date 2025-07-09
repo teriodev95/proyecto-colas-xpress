@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Servicio Redis - Broker de mensajes para Celery con persistencia garantizada
+  redis:
+    image: redis:7-alpine
+    container_name: messaging_redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6380:6379"  # Puerto personalizado para evitar conflictos
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - messaging_network
+
+  # Flower - Monitoreo de Celery
+  flower:
+    image: mher/flower:2.0
+    container_name: messaging_flower
+    ports:
+      - "5556:5555"  # Puerto para acceder a la interfaz web de Flower
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - FLOWER_PORT=5555
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - messaging_network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  messaging_network:
+    external: false
+    name: messaging_network

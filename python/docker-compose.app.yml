@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # API FastAPI
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: messaging_api
+    ports:
+      - "8001:8000"
+    environment:
+      - REDIS_HOST=messaging_redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://localhost:8080}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - messaging_network
+
+  # Worker Celery
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: messaging_worker
+    environment:
+      - REDIS_HOST=messaging_redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://localhost:8080}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-}
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+    networks:
+      - messaging_network
+
+networks:
+  messaging_network:
+    external: true
+    name: messaging_network

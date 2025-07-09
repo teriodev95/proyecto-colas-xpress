@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 # Crear aplicación FastAPI
 app = FastAPI(
     title="Microservicio de Mensajería",
-    description="API para envío de mensajes transaccionales usando Evolution API y Celery",
-    version="1.0.0",
+    description="API para envío de mensajes transaccionales usando Evolution API y Celery by calaverita*",
+    version="1.0.1",
     docs_url="/docs",
     redoc_url="/redoc"
 )
