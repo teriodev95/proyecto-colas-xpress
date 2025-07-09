@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Servicio Redis - Broker de mensajes para Celery con persistencia garantizada
+  redis:
+    image: redis:7-alpine
+    container_name: messaging_redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6380:6379"  # Puerto personalizado para evitar conflictos
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API FastAPI
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: messaging_api
+    ports:
+      - "8001:8000"  # Puerto personalizado para evitar conflictos
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://localhost:8080}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Worker Celery
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: messaging_worker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://localhost:8080}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 1  # Número de workers
+
+  # Flower - Monitoreo de Celery (Opcional)
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: messaging_flower
+    ports:
+      - "5556:5555"  # Puerto para acceder a la interfaz web de Flower
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    working_dir: /app/project
+    command: ["celery", "-A", "app.celery_app", "flower", "--port=5555"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: messaging_network 

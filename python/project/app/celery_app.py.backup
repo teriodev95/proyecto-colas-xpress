@@ -1,0 +1,38 @@
+"""
+Configuración de Celery para el procesamiento asíncrono de tareas.
+Define el broker, backend y configuración de reintentos.
+"""
+from celery import Celery
+from .config import settings
+
+# Crear instancia de Celery con configuración personalizada
+celery_app = Celery(
+    "messaging_worker",
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend,
+    include=['app.tasks']  # Incluir módulo de tareas
+)
+
+# Configuración de Celery
+celery_app.conf.update(
+    # Configuración de tareas
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='UTC',
+    enable_utc=True,
+    
+    # Configuración de reintentos y timeouts
+    task_acks_late=True,  # Confirmar tareas solo después de completarse
+    worker_prefetch_multiplier=1,  # Procesar una tarea a la vez
+    task_reject_on_worker_lost=True,  # Rechazar tareas si el worker se pierde
+    
+    # Configuración de colas
+    task_routes={
+        'app.tasks.send_transactional_message': {'queue': 'transactional_messages'},
+    },
+    
+    # Configuración de monitoreo
+    worker_send_task_events=True,
+    task_send_sent_event=True,
+) 
